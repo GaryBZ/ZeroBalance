@@ -7,3 +7,4 @@
 - Cuando generes lógica financiera, asegúrate de tipar estrictamente las variables en TypeScript.
 - Sugiere pruebas unitarias (TDD) para cada función matemática que altere el saldo.
 - Sigue el Desarrollo Basado en Especificaciones (SDD).
+- El diseño visual debe usar colores de alto contraste (blanco y gris muy oscuro) con acentos en rojo vibrante (red-500), estilo neobrutalismo ligero o flat moderno.

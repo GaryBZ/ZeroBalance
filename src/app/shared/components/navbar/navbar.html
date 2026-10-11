@@ -1,0 +1,50 @@
+<header class="border-b-2 border-gray-900 bg-white">
+  <nav
+    class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8"
+    aria-label="Navegación principal"
+  >
+    <a
+      routerLink="/dashboard"
+      class="text-2xl font-black tracking-tight text-gray-900"
+      aria-label="ZeroBalance, ir al dashboard"
+    >
+      Zero<span class="text-red-600">Balance</span>
+    </a>
+
+    <div class="order-3 flex w-full items-center gap-2 sm:order-2 sm:w-auto">
+      <a
+        routerLink="/dashboard"
+        routerLinkActive="bg-gray-900 text-white shadow-[3px_3px_0px_0px_rgba(220,38,38,1)]"
+        [routerLinkActiveOptions]="{ exact: true }"
+        class="rounded-xl border-2 border-gray-900 px-4 py-2 text-sm font-bold transition-all hover:bg-gray-100"
+      >
+        Dashboard
+      </a>
+      <a
+        routerLink="/movimientos"
+        routerLinkActive="bg-gray-900 text-white shadow-[3px_3px_0px_0px_rgba(220,38,38,1)]"
+        class="rounded-xl border-2 border-gray-900 px-4 py-2 text-sm font-bold transition-all hover:bg-gray-100"
+      >
+        Movimientos
+      </a>
+    </div>
+
+    <a
+      routerLink="/movimientos"
+      [queryParams]="{ nuevo: true }"
+      class="order-2 inline-flex items-center gap-2 rounded-xl border-2 border-gray-900 bg-red-600 px-4 py-2.5 font-bold text-white shadow-[4px_4px_0px_0px_rgba(17,24,39,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(17,24,39,1)] sm:order-3"
+    >
+      <svg
+        class="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        aria-hidden="true"
+      >
+        <path d="M12 5v14M5 12h14" stroke-linecap="round" />
+      </svg>
+      Nuevo movimiento
+    </a>
+  </nav>
+</header>
