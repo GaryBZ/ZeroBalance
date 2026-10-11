@@ -17,3 +17,14 @@ export interface ObjetivoAhorro {
   montoAhorrado: number;
   fechaCreacion: string;
 }
+
+export type TipoMovimiento = 'ingreso' | 'gasto';
+
+export interface Movimiento {
+  id: string;
+  monto: number;
+  descripcion: string;
+  tipo: TipoMovimiento;
+  categoriaId: CategoriaId;
+  fecha: string;
+}

@@ -2,8 +2,10 @@ import { Injectable, signal } from '@angular/core';
 import {
   Categoria,
   CategoriaId,
+  Movimiento,
   ObjetivoAhorro,
   Presupuesto,
+  TipoMovimiento,
 } from '../models/finance.models';
 
 @Injectable({
@@ -44,6 +46,33 @@ export class Finance {
     },
   ]);
 
+  private readonly movimientos = signal<Movimiento[]>([
+    {
+      id: 'movimiento-1',
+      monto: 3000,
+      descripcion: 'Nómina mensual',
+      tipo: 'ingreso',
+      categoriaId: 'servicios',
+      fecha: '2026-10-01',
+    },
+    {
+      id: 'movimiento-2',
+      monto: 86.4,
+      descripcion: 'Supermercado La Colmena',
+      tipo: 'gasto',
+      categoriaId: 'comida',
+      fecha: '2026-10-09',
+    },
+    {
+      id: 'movimiento-3',
+      monto: 32,
+      descripcion: 'Metro y transporte',
+      tipo: 'gasto',
+      categoriaId: 'servicios',
+      fecha: '2026-10-08',
+    },
+  ]);
+
   obtenerCategorias(): Categoria[] {
     return this.categorias();
   }
@@ -61,6 +90,29 @@ export class Finance {
 
   obtenerObjetivos(): ObjetivoAhorro[] {
     return this.objetivos();
+  }
+
+  obtenerMovimientos(): Movimiento[] {
+    return this.movimientos();
+  }
+
+  registrarMovimiento(
+    monto: number,
+    descripcion: string,
+    tipo: TipoMovimiento,
+    categoriaId: CategoriaId,
+  ): Movimiento {
+    const movimiento: Movimiento = {
+      id: globalThis.crypto?.randomUUID() ?? `${Date.now()}`,
+      monto,
+      descripcion,
+      tipo,
+      categoriaId,
+      fecha: new Date().toISOString().slice(0, 10),
+    };
+
+    this.movimientos.update((movimientos) => [movimiento, ...movimientos]);
+    return movimiento;
   }
 
   crearObjetivo(
