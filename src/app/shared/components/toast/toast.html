@@ -1,0 +1,30 @@
+@if (toast.message(); as message) {
+  <div class="fixed inset-x-4 top-5 z-50 flex justify-center sm:inset-x-auto sm:right-6 sm:top-6 sm:justify-end" role="status" aria-live="polite">
+    <div
+      class="flex max-w-md items-center gap-3 rounded-xl border-2 border-gray-900 px-4 py-3 font-bold text-white shadow-[4px_4px_0px_0px_rgba(17,24,39,1)]"
+      [class]="message.type === 'success' ? 'bg-green-600' : 'bg-red-600'"
+    >
+      @if (message.type === 'success') {
+        <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      } @else {
+        <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <path d="M12 8v4M12 16h.01" stroke-linecap="round" />
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      }
+      <span>{{ message.message }}</span>
+      <button
+        type="button"
+        class="ml-auto rounded-lg p-1 transition-colors hover:bg-black/20 focus:outline-none focus:ring-2 focus:ring-white"
+        (click)="toast.dismiss()"
+        aria-label="Cerrar notificación"
+      >
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <path d="m6 6 12 12M18 6 6 18" stroke-linecap="round" />
+        </svg>
+      </button>
+    </div>
+  </div>
+}
