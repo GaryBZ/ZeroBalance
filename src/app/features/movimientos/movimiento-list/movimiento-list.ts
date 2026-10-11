@@ -8,6 +8,7 @@ import {
   TipoMovimiento,
 } from '../../../core/models/finance.models';
 import { Finance } from '../../../core/services/finance';
+import { Toast } from '../../../core/services/toast';
 
 @Component({
   selector: 'app-movimiento-list',
@@ -18,6 +19,7 @@ import { Finance } from '../../../core/services/finance';
 export class MovimientoList {
   private readonly finance = inject(Finance);
   private readonly formBuilder = inject(FormBuilder);
+  private readonly toast = inject(Toast);
 
   protected readonly categorias: Categoria[] =
     this.finance.obtenerCategorias();
@@ -35,6 +37,7 @@ export class MovimientoList {
   protected guardarMovimiento(): void {
     if (this.movimientoForm.invalid) {
       this.movimientoForm.markAllAsTouched();
+      this.toast.error('Revisa el monto y la descripción antes de guardar.');
       return;
     }
 
@@ -52,6 +55,7 @@ export class MovimientoList {
       tipo: 'gasto',
       categoriaId: 'comida',
     });
+    this.toast.success('Movimiento guardado correctamente.');
   }
 
   protected nombreCategoria(categoriaId: CategoriaId): string {
