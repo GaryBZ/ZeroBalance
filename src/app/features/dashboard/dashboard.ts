@@ -191,72 +191,85 @@ export class Dashboard {
     return `conic-gradient(${segmentos.join(', ')})`;
   }
 
-  protected exportarMovimientos(): void {
+  protected async exportarMovimientos(): Promise<void> {
+    const { default: ExcelJS } = await import('exceljs');
     const fechaGeneracion = new Date();
     const fechaTexto = fechaGeneracion.toLocaleString('es-MX', {
       dateStyle: 'long',
       timeStyle: 'short',
     });
-    const filas = this.movimientos()
-      .map((movimiento) => `
-        <tr>
-          <td>${this.escapeHtml(new Date(movimiento.fecha).toLocaleString('es-MX'))}</td>
-          <td>${this.escapeHtml(movimiento.tipo === 'ingreso' ? 'Ingreso' : 'Gasto')}</td>
-          <td>${this.escapeHtml(movimiento.descripcion)}</td>
-          <td>${this.escapeHtml(this.descripcionCategoria(movimiento))}</td>
-          <td class="amount">$${movimiento.monto.toFixed(2)}</td>
-        </tr>`)
-      .join('');
-    const documento = `
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            body { font-family: Arial, sans-serif; color: #111827; background: #ffffff; }
-            .report { width: 100%; max-width: 900px; margin: 0 auto; }
-            h1 { color: #111827; font-size: 24px; margin-bottom: 6px; }
-            .date { color: #4b5563; font-size: 13px; margin-bottom: 20px; }
-            table { width: 100%; border-collapse: collapse; background: #ffffff; }
-            th { padding: 10px; border: 1px solid #111827; background: #dc2626; color: #ffffff; text-align: left; }
-            td { padding: 9px 10px; border: 1px solid #9ca3af; background: #ffffff; }
-            .amount { text-align: right; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div class="report">
-            <h1>ZeroBalance - Historial de movimientos</h1>
-            <p class="date">Fecha de generación: ${this.escapeHtml(fechaTexto)}</p>
-            <table>
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Tipo</th>
-                  <th>Descripción</th>
-                  <th>Categoría</th>
-                  <th>Monto</th>
-                </tr>
-              </thead>
-              <tbody>${filas}</tbody>
-            </table>
-          </div>
-        </body>
-      </html>`;
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'ZeroBalance';
+    workbook.created = fechaGeneracion;
+    const hoja = workbook.addWorksheet('Movimientos', {
+      views: [{ state: 'frozen', ySplit: 4 }],
+    });
+
+    hoja.mergeCells('A1:E1');
+    hoja.getCell('A1').value = 'ZeroBalance - Historial de movimientos';
+    hoja.getCell('A1').font = { bold: true, size: 16, color: { argb: '111827' } };
+    hoja.getCell('A1').alignment = { vertical: 'middle' };
+    hoja.getRow(1).height = 28;
+
+    hoja.mergeCells('A2:E2');
+    hoja.getCell('A2').value = `Fecha de generación: ${fechaTexto}`;
+    hoja.getCell('A2').font = { italic: true, size: 10, color: { argb: '4B5563' } };
+
+    hoja.addRow([]);
+    const encabezado = hoja.addRow(['Fecha', 'Tipo', 'Descripción', 'Categoría', 'Monto']);
+    encabezado.height = 22;
+    encabezado.eachCell((celda) => {
+      celda.font = { bold: true, color: { argb: 'FFFFFF' } };
+      celda.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DC2626' } };
+      celda.alignment = { vertical: 'middle', horizontal: 'left' };
+      celda.border = {
+        top: { style: 'thin', color: { argb: '111827' } },
+        left: { style: 'thin', color: { argb: '111827' } },
+        bottom: { style: 'thin', color: { argb: '111827' } },
+        right: { style: 'thin', color: { argb: '111827' } },
+      };
+    });
+
+    for (const movimiento of this.movimientos()) {
+      const fila = hoja.addRow([
+        new Date(movimiento.fecha),
+        movimiento.tipo === 'ingreso' ? 'Ingreso' : 'Gasto',
+        movimiento.descripcion,
+        this.descripcionCategoria(movimiento),
+        movimiento.monto,
+      ]);
+      fila.getCell(1).numFmt = 'dd/mm/yyyy hh:mm';
+      fila.getCell(5).numFmt = '$#,##0.00';
+      fila.getCell(5).alignment = { horizontal: 'right' };
+      fila.eachCell((celda) => {
+        celda.border = {
+          top: { style: 'thin', color: { argb: '9CA3AF' } },
+          left: { style: 'thin', color: { argb: '9CA3AF' } },
+          bottom: { style: 'thin', color: { argb: '9CA3AF' } },
+          right: { style: 'thin', color: { argb: '9CA3AF' } },
+        };
+      });
+    }
+
+    hoja.columns = [
+      { key: 'fecha', width: 22 },
+      { key: 'tipo', width: 14 },
+      { key: 'descripcion', width: 38 },
+      { key: 'categoria', width: 18 },
+      { key: 'monto', width: 16 },
+    ];
+    hoja.autoFilter = { from: 'A4', to: 'E4' };
+
+    const buffer = await workbook.xlsx.writeBuffer();
     const enlace = document.createElement('a');
     enlace.href = URL.createObjectURL(
-      new Blob([`\ufeff${documento}`], { type: 'application/vnd.ms-excel' }),
+      new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }),
     );
-    enlace.download = `zerobalance-movimientos-${fechaGeneracion.toISOString().slice(0, 10)}.xls`;
+    enlace.download = `zerobalance-movimientos-${fechaGeneracion.toISOString().slice(0, 10)}.xlsx`;
     enlace.click();
     URL.revokeObjectURL(enlace.href);
-  }
-
-  private escapeHtml(value: string): string {
-    return value
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
   }
 
   constructor() {
