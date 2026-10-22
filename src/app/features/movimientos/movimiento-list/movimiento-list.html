@@ -19,8 +19,12 @@
     >
       <div class="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h2 class="text-2xl font-black text-gray-900">Nuevo movimiento</h2>
-          <p class="mt-1 text-sm text-gray-600">Añade una operación a tu historial.</p>
+          <h2 class="text-2xl font-black text-gray-900">
+            {{ movimientoEditando() === null ? 'Nuevo movimiento' : 'Editar movimiento' }}
+          </h2>
+          <p class="mt-1 text-sm text-gray-600">
+            {{ movimientoEditando() === null ? 'Añade una operación a tu historial.' : 'Actualiza los datos de esta operación.' }}
+          </p>
         </div>
         <span class="rounded-lg bg-red-600 px-3 py-1 text-xs font-black uppercase text-white">
           Registro
@@ -74,7 +78,7 @@
               formControlName="categoriaId"
               class="w-full rounded-xl border-2 border-gray-900 bg-gray-50 px-4 py-3 text-gray-900 outline-none focus:bg-white focus:ring-2 focus:ring-red-600"
             >
-              @for (categoria of categorias; track categoria.id) {
+              @for (categoria of categorias(); track categoria.id) {
                 <option [value]="categoria.id">{{ categoria.nombre }}</option>
               }
             </select>
@@ -82,12 +86,38 @@
         </div>
       </div>
 
-      <button
-        type="submit"
-        class="mt-7 w-full rounded-xl border-2 border-gray-900 bg-red-600 px-5 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(17,24,39,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:bg-red-700 hover:shadow-[1px_1px_0px_0px_rgba(17,24,39,1)]"
-      >
-        Guardar movimiento
-      </button>
+      <input
+        #archivoRecibo
+        type="file"
+        accept="image/*"
+        class="hidden"
+        (change)="escanearRecibo($event)"
+      />
+      <div class="mt-7 grid gap-3 sm:grid-cols-2">
+        <button
+          type="submit"
+          class="rounded-xl border-2 border-gray-900 bg-red-600 px-5 py-3 font-black text-white shadow-[3px_3px_0px_0px_rgba(17,24,39,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:bg-red-700 hover:shadow-[1px_1px_0px_0px_rgba(17,24,39,1)]"
+        >
+          {{ movimientoEditando() === null ? 'Guardar movimiento' : 'Guardar cambios' }}
+        </button>
+        @if (movimientoEditando() !== null) {
+          <button
+            type="button"
+            (click)="cancelarEdicion()"
+            class="rounded-xl border-2 border-gray-900 bg-white px-5 py-3 font-black text-gray-900 hover:bg-gray-100"
+          >
+            Cancelar
+          </button>
+        }
+        <button
+          type="button"
+          [disabled]="escaneando()"
+          (click)="abrirModalEscaneo()"
+          class="rounded-xl border-2 border-gray-900 bg-white px-5 py-3 font-black text-gray-900 shadow-[3px_3px_0px_0px_rgba(17,24,39,1)] transition-all hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {{ escaneando() ? 'Escaneando...' : 'Escanear Recibo' }}
+        </button>
+      </div>
     </form>
 
     <section
@@ -100,13 +130,42 @@
           <p class="mt-1 text-sm text-gray-600">Tus últimos movimientos registrados.</p>
         </div>
         <span class="rounded-full bg-gray-900 px-3 py-1 text-xs font-bold text-white">
-          {{ movimientos().length }}
+        {{ movimientosFiltrados().length }} / {{ movimientos().length }}
         </span>
       </div>
 
-      @if (movimientos().length > 0) {
+      <div class="mb-5 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+      <input
+        type="search"
+        placeholder="Buscar por descripción..."
+        [value]="textoBusqueda()"
+        (input)="actualizarBusqueda($any($event.target).value)"
+        class="rounded-xl border-2 border-gray-900 bg-gray-50 px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-red-600"
+      />
+      <select
+        [value]="filtroTipo()"
+        (change)="actualizarTipo($any($event.target).value)"
+        class="rounded-xl border-2 border-gray-900 bg-gray-50 px-4 py-3 text-sm font-bold outline-none focus:bg-white focus:ring-2 focus:ring-red-600"
+      >
+        <option value="todos">Todos los tipos</option>
+        <option value="gasto">Gastos</option>
+        <option value="ingreso">Ingresos</option>
+      </select>
+      <select
+        [value]="filtroCategoria()"
+        (change)="actualizarCategoria($any($event.target).value)"
+        class="rounded-xl border-2 border-gray-900 bg-gray-50 px-4 py-3 text-sm font-bold outline-none focus:bg-white focus:ring-2 focus:ring-red-600"
+      >
+        <option value="todas">Todas las categorías</option>
+        @for (categoria of categorias(); track categoria.id) {
+          <option [value]="categoria.id">{{ categoria.nombre }}</option>
+        }
+      </select>
+      </div>
+
+      @if (movimientosFiltrados().length > 0) {
         <div class="space-y-3">
-          @for (movimiento of movimientos(); track movimiento.id) {
+          @for (movimiento of movimientosPaginados(); track movimiento.id) {
             <article class="flex items-center justify-between gap-3 rounded-xl border-2 border-gray-900 bg-gray-50 p-4">
               <div class="flex min-w-0 items-center gap-3">
                 <span
@@ -136,13 +195,123 @@
                 {{ esIngreso(movimiento) ? '+' : '-' }}{{ movimiento.monto | currency }}
               </p>
             </article>
+            <div class="flex justify-end gap-2">
+              <button type="button" (click)="editarMovimiento(movimiento)" class="rounded-lg border-2 border-gray-900 px-3 py-1 text-xs font-black hover:bg-gray-900 hover:text-white">Editar</button>
+              <button type="button" (click)="eliminarMovimiento(movimiento)" class="rounded-lg border-2 border-red-600 px-3 py-1 text-xs font-black text-red-600 hover:bg-red-50">Eliminar</button>
+            </div>
           }
         </div>
+        @if (totalPaginas() > 1) {
+          <nav
+            class="mt-6 flex items-center justify-between gap-3 border-t-2 border-gray-200 pt-5"
+            aria-label="Paginación del historial"
+          >
+            <button
+              type="button"
+              (click)="paginaAnterior()"
+              [disabled]="paginaActual() === 1"
+              class="rounded-lg border-2 border-gray-900 bg-white px-3 py-2 text-sm font-black text-gray-900 transition-colors hover:bg-gray-900 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-gray-900"
+              aria-label="Ir a la página anterior"
+            >
+              Anterior
+            </button>
+            <span class="text-sm font-black text-gray-700">
+              Página {{ paginaActual() }} de {{ totalPaginas() }}
+            </span>
+            <button
+              type="button"
+              (click)="paginaSiguiente()"
+              [disabled]="paginaActual() === totalPaginas()"
+              class="rounded-lg border-2 border-gray-900 bg-gray-900 px-3 py-2 text-sm font-black text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Ir a la página siguiente"
+            >
+              Siguiente
+            </button>
+          </nav>
+        }
       } @else {
         <div class="rounded-xl border-2 border-dashed border-gray-900 p-8 text-center">
-          <p class="font-bold text-gray-600">Todavía no tienes movimientos registrados.</p>
+          <p class="font-bold text-gray-600">
+            {{ movimientos().length > 0 ? 'No hay movimientos que coincidan con los filtros.' : 'Todavía no tienes movimientos registrados.' }}
+          </p>
         </div>
       }
     </section>
   </div>
 </section>
+
+@if (modalEscaneoAbierto()) {
+  <div
+    class="fixed inset-0 z-40 flex items-center justify-center bg-gray-900/70 p-4"
+    role="presentation"
+    (click)="cerrarModalEscaneo()"
+  >
+    <section
+      class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border-2 border-gray-900 bg-white p-6 shadow-[6px_6px_0px_0px_rgba(220,38,38,1)]"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="escaneo-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-sm font-black uppercase tracking-wider text-red-600">OCR local</p>
+          <h2 id="escaneo-title" class="mt-1 text-2xl font-black text-gray-900">
+            Escanear recibo
+          </h2>
+        </div>
+        <button
+          type="button"
+          [disabled]="escaneando()"
+          (click)="cerrarModalEscaneo()"
+          class="rounded-lg border-2 border-gray-900 p-2 text-gray-900 transition-colors hover:bg-gray-900 hover:text-white disabled:opacity-50"
+          aria-label="Cerrar escáner"
+        >
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="m6 6 12 12M18 6 6 18" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      <div
+        class="mt-5 rounded-xl border-2 border-dashed p-6 text-center transition-colors"
+        [class]="archivoArrastrado() ? 'border-red-600 bg-red-50' : 'border-gray-900 bg-gray-50'"
+        (dragover)="marcarArrastre($event, true)"
+        (dragleave)="marcarArrastre($event, false)"
+        (drop)="soltarRecibo($event)"
+      >
+        <svg class="mx-auto h-10 w-10 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M12 16V4m0 0L7 9m5-5 5 5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <p class="mt-3 font-black text-gray-900">
+          {{ archivoArrastrado() ? 'Suelta la imagen aquí' : 'Arrastra una foto del recibo aquí' }}
+        </p>
+        <p class="mt-1 text-sm text-gray-600">o selecciona un archivo desde tu dispositivo</p>
+        <button
+          type="button"
+          [disabled]="escaneando()"
+          (click)="abrirSelectorArchivo()"
+          class="mt-4 rounded-lg border-2 border-gray-900 bg-gray-900 px-4 py-2.5 font-bold text-white transition-colors hover:bg-gray-700 disabled:opacity-60"
+        >
+          Buscar archivo
+        </button>
+      </div>
+
+      @if (escaneando()) {
+        <p class="mt-4 text-center text-sm font-black text-red-600" role="status">
+          Procesando imagen localmente. Esto puede tardar unos segundos...
+        </p>
+      }
+      <div class="mt-5 rounded-xl border-2 border-gray-900 bg-white p-4 text-sm text-gray-700">
+        <p class="font-black text-gray-900">Recomendaciones para un buen resultado</p>
+        <ul class="mt-2 list-disc space-y-1 pl-5">
+          <li>Usa una foto nítida, completa y bien iluminada.</li>
+          <li>Evita reflejos, sombras y recibos doblados.</li>
+          <li>El OCR prioriza la línea que contiene <strong>Total</strong>.</li>
+          <li>La categoría se sugerirá automáticamente, pero puedes cambiarla antes de guardar.</li>
+          <li>El tipo se establecerá como <strong>Gasto</strong> porque se trata de un recibo.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+}

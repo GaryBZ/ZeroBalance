@@ -16,6 +16,9 @@ export interface ObjetivoAhorro {
   montoObjetivo: number;
   montoAhorrado: number;
   fechaCreacion: string;
+  fechaLimite: string | null;
+  estado: 'activo' | 'pausado' | 'completado' | 'cancelado';
+  promedioMensual: number;
 }
 
 export type TipoMovimiento = 'ingreso' | 'gasto';

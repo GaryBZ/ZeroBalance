@@ -1,0 +1,79 @@
+<section class="space-y-8" aria-labelledby="recurrentes-title">
+  <div>
+    <p class="mb-2 text-sm font-black uppercase tracking-[0.2em] text-red-600">Compromisos</p>
+    <h1 id="recurrentes-title" class="text-4xl font-black tracking-tight text-gray-900 md:text-5xl">Gastos recurrentes</h1>
+    <p class="mt-3 max-w-2xl text-gray-600">Registra suscripciones, servicios y pagos periódicos para anticipar tus próximos vencimientos.</p>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="guardar()" class="rounded-2xl border-2 border-gray-900 bg-white p-6 shadow-[4px_4px_0px_0px_rgba(17,24,39,1)]">
+    <h2 class="text-xl font-black">{{ editando() ? 'Editar gasto recurrente' : 'Nuevo gasto recurrente' }}</h2>
+    <div class="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <label class="block">
+        <span class="mb-2 block text-sm font-bold text-gray-900">Descripción</span>
+        <input type="text" formControlName="descripcion" placeholder="Ej. Internet" class="w-full rounded-xl border-2 border-gray-900 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-red-600" />
+        @if (form.controls.descripcion.invalid && form.controls.descripcion.touched) {
+          <span class="mt-1 block text-xs font-bold text-red-600">Escribe una descripción válida.</span>
+        }
+      </label>
+      <label class="block">
+        <span class="mb-2 block text-sm font-bold text-gray-900">Monto</span>
+        <div class="relative">
+          <span class="pointer-events-none absolute left-4 top-3 font-bold text-gray-500">$</span>
+          <input type="number" min="0.01" step="0.01" formControlName="monto" placeholder="0.00" class="w-full rounded-xl border-2 border-gray-900 bg-gray-50 py-3 pl-8 pr-4 text-gray-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-red-600" />
+        </div>
+        @if (form.controls.monto.invalid && form.controls.monto.touched) {
+          <span class="mt-1 block text-xs font-bold text-red-600">El monto debe ser mayor que cero.</span>
+        }
+      </label>
+      <label class="block">
+        <span class="mb-2 block text-sm font-bold text-gray-900">Categoría</span>
+        <select formControlName="categoriaId" class="w-full rounded-xl border-2 border-gray-900 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-red-600">
+          @for (categoria of categorias(); track categoria.id) { <option [value]="categoria.id">{{ categoria.nombre }}</option> }
+        </select>
+      </label>
+      <label class="block">
+        <span class="mb-2 block text-sm font-bold text-gray-900">Frecuencia</span>
+        <select formControlName="frecuencia" class="w-full rounded-xl border-2 border-gray-900 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-red-600">
+          <option value="semanal">Semanal</option><option value="mensual">Mensual</option><option value="anual">Anual</option>
+        </select>
+      </label>
+      <label class="block">
+        <span class="mb-2 block text-sm font-bold text-gray-900">Próxima fecha</span>
+        <input type="date" formControlName="proximaFecha" class="w-full rounded-xl border-2 border-gray-900 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-red-600" />
+      </label>
+    </div>
+    <div class="mt-5 flex flex-wrap gap-3">
+      <button type="submit" class="rounded-xl border-2 border-gray-900 bg-red-600 px-5 py-3 font-black text-white">{{ editando() ? 'Guardar cambios' : 'Crear gasto' }}</button>
+      @if (editando()) { <button type="button" (click)="cancelar()" class="rounded-xl border-2 border-gray-900 px-5 py-3 font-black">Cancelar</button> }
+    </div>
+  </form>
+
+  @if (proximos().length > 0) {
+    <div class="rounded-2xl border-2 border-red-600 bg-red-50 p-5">
+      <h2 class="font-black text-red-700">Próximos vencimientos</h2>
+      <p class="mt-1 text-sm text-red-700">Tienes {{ proximos().length }} compromiso(s) en los próximos 30 días.</p>
+    </div>
+  }
+
+  @if (gastos().length > 0) {
+    <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      @for (gasto of gastos(); track gasto.id) {
+        <article class="rounded-2xl border-2 border-gray-900 bg-white p-5 shadow-[4px_4px_0px_0px_rgba(17,24,39,1)]">
+          <div class="flex items-start justify-between gap-3">
+            <h2 class="text-xl font-black">{{ gasto.descripcion }}</h2>
+            <span class="rounded-full px-3 py-1 text-xs font-black" [class]="gasto.activo ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'">{{ gasto.activo ? 'Activo' : 'Inactivo' }}</span>
+          </div>
+          <p class="mt-4 text-3xl font-black">{{ gasto.monto | currency }}</p>
+          <p class="mt-2 text-sm font-bold text-gray-600">{{ categoria(gasto.categoriaId) }} · {{ frecuenciaTexto(gasto.frecuencia) }}</p>
+          <p class="mt-1 text-sm text-gray-600">Próximo: {{ gasto.proximaFecha | date:'dd MMM yyyy' }}</p>
+          <div class="mt-5 flex gap-2">
+            <button type="button" (click)="editar(gasto)" class="rounded-lg border-2 border-gray-900 px-3 py-2 text-sm font-bold">Editar</button>
+            <button type="button" (click)="eliminar(gasto)" class="rounded-lg border-2 border-red-600 px-3 py-2 text-sm font-bold text-red-600">Eliminar</button>
+          </div>
+        </article>
+      }
+    </div>
+  } @else {
+    <div class="rounded-2xl border-2 border-dashed border-gray-900 bg-white p-10 text-center"><p class="font-bold text-gray-600">Aún no tienes gastos recurrentes.</p></div>
+  }
+</section>

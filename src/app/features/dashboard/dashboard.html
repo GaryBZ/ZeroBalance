@@ -5,12 +5,12 @@
       <h1 id="dashboard-title" class="max-w-xl text-5xl font-black leading-[0.95] tracking-tight md:text-7xl">
         Tu dinero<br />libre es:
         <span class="relative inline-block whitespace-nowrap text-red-500">
-          {{ availableBalance }}
+          {{ saldoDisponible() | currency:'USD':'symbol':'1.2-2' }}
           <span class="absolute inset-x-0 bottom-1 -z-10 h-3 -rotate-1 bg-red-500/20" aria-hidden="true"></span>
         </span>
       </h1>
       <p class="mt-6 max-w-md text-lg leading-7 text-gray-600">
-        Después de cubrir tus compromisos, este es el dinero que puedes usar con libertad este mes.
+        Tus métricas se calculan con los movimientos almacenados en tu base de datos.
       </p>
     </div>
 
@@ -18,69 +18,200 @@
       <div class="flex items-start justify-between">
         <div>
           <p class="text-sm font-medium text-gray-400">Gastos del mes</p>
-          <p class="mt-3 text-4xl font-black tracking-tight">{{ monthlyExpenses }}</p>
+          <p class="mt-3 text-4xl font-black tracking-tight">
+            {{ gastoMensual() | currency:'USD':'symbol':'1.2-2' }}
+          </p>
         </div>
-        <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500 text-white" aria-hidden="true">
-          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 3v18h18M7 16l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </span>
+        <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500 text-white" aria-hidden="true">↗</span>
       </div>
       <div class="mt-10">
         <div class="mb-3 flex justify-between text-sm">
           <span class="text-gray-400">Presupuesto utilizado</span>
-          <span class="font-bold text-red-400">{{ budgetProgress }}%</span>
+          <span class="font-bold text-red-400">{{ porcentajePresupuesto() }}%</span>
         </div>
-        <div class="h-3 overflow-hidden rounded-full bg-gray-700" role="progressbar" [attr.aria-valuenow]="budgetProgress" aria-valuemin="0" aria-valuemax="100" aria-label="Presupuesto utilizado">
-          <div class="h-full rounded-full bg-red-500" [style.width.%]="budgetProgress"></div>
+        <div class="h-3 overflow-hidden rounded-full bg-gray-700" role="progressbar" [attr.aria-valuenow]="porcentajePresupuesto()" aria-valuemin="0" aria-valuemax="100">
+          <div class="h-full rounded-full bg-red-500" [style.width.%]="porcentajePresupuesto()"></div>
         </div>
       </div>
-      <p class="mt-4 text-sm text-gray-400">Vas por buen camino. Aún tienes margen.</p>
+      <div class="mt-6 grid grid-cols-2 gap-3 text-sm">
+        <div><p class="text-gray-400">Ingresos</p><p class="font-bold text-green-400">{{ ingresos() | currency:'USD':'symbol':'1.2-2' }}</p></div>
+        <div><p class="text-gray-400">Metas</p><p class="font-bold">{{ objetivos().length }}</p></div>
+      </div>
+      @if (alertaPresupuesto(); as alerta) {
+        <p class="mt-5 rounded-xl border border-red-400 bg-red-500/10 p-3 text-sm font-bold text-red-200" role="status">
+          {{ alerta }}
+        </p>
+      }
     </article>
   </section>
+
+  <section class="mt-12 grid gap-6 lg:grid-cols-2" aria-label="Análisis financiero">
+    <article class="rounded-3xl border-2 border-gray-900 bg-white p-6 shadow-[4px_4px_0px_0px_rgba(17,24,39,1)] md:p-8">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-sm font-bold uppercase tracking-[0.2em] text-red-600">Distribución</p>
+          <h2 class="mt-2 text-2xl font-black">Gastos por categoría</h2>
+        </div>
+        <span class="rounded-xl bg-red-100 px-3 py-2 text-xs font-black text-red-700">Total {{ gastos() | currency:'USD':'symbol':'1.2-2' }}</span>
+      </div>
+      <div class="mt-7 space-y-5">
+        @for (categoria of gastosPorCategoria(); track categoria.id) {
+          <div>
+            <div class="mb-2 flex justify-between text-sm font-bold">
+              <span>{{ categoria.nombre }}</span>
+              <span>{{ categoria.total | currency:'USD':'symbol':'1.2-2' }}</span>
+            </div>
+            <div class="h-3 overflow-hidden rounded-full bg-gray-200" role="progressbar" [attr.aria-valuenow]="categoria.porcentaje" aria-valuemin="0" aria-valuemax="100" [attr.aria-label]="'Gastos de ' + categoria.nombre">
+              <div class="h-full rounded-full bg-red-600 transition-all duration-500" [style.width.%]="categoria.porcentaje"></div>
+            </div>
+          </div>
+        }
+      </div>
+    </article>
+
+    <article class="rounded-3xl bg-gray-900 p-6 text-white shadow-xl md:p-8">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-sm font-bold uppercase tracking-[0.2em] text-red-400">Balance</p>
+          <h2 class="mt-2 text-2xl font-black">Ingresos vs. gastos</h2>
+        </div>
+        <button type="button" (click)="exportarMovimientos()" [disabled]="movimientos().length === 0" class="rounded-lg border-2 border-white px-3 py-2 text-xs font-black transition hover:bg-white hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40">
+          Exportar Excel
+        </button>
+      </div>
+      <div class="mt-8 grid grid-cols-2 gap-4">
+        <div class="rounded-2xl bg-white/10 p-4">
+          <p class="text-sm text-gray-400">Ingresos totales</p>
+          <p class="mt-2 text-2xl font-black text-green-400">{{ ingresos() | currency:'USD':'symbol':'1.2-2' }}</p>
+        </div>
+        <div class="rounded-2xl bg-white/10 p-4">
+          <p class="text-sm text-gray-400">Gastos totales</p>
+          <p class="mt-2 text-2xl font-black text-red-400">{{ gastos() | currency:'USD':'symbol':'1.2-2' }}</p>
+        </div>
+      </div>
+      <div class="mt-7">
+        <div class="mb-2 flex justify-between text-sm font-bold">
+          <span>Saldo neto</span>
+          <span [class]="saldoDisponible() >= 0 ? 'text-green-400' : 'text-red-400'">{{ saldoDisponible() | currency:'USD':'symbol':'1.2-2' }}</span>
+        </div>
+        <div class="h-4 overflow-hidden rounded-full bg-white/20">
+          <div class="h-full rounded-full bg-green-400 transition-all duration-500" [style.width.%]="porcentajeSaldo()"></div>
+        </div>
+      </div>
+      <p class="mt-5 text-sm text-gray-400">Descarga tus movimientos para analizarlos o compartirlos.</p>
+    </article>
+  </section>
+
+  <section class="mt-12 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]" aria-label="Gráficos financieros">
+    <article class="rounded-3xl border-2 border-gray-900 bg-white p-6 shadow-[4px_4px_0px_0px_rgba(17,24,39,1)] md:p-8">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-sm font-bold uppercase tracking-[0.2em] text-red-600">Tendencia</p>
+          <h2 class="mt-2 text-2xl font-black">Ingresos y gastos</h2>
+          <p class="mt-1 text-sm text-gray-600">Comparativa de los últimos seis meses</p>
+        </div>
+        <div class="flex gap-4 text-xs font-bold">
+          <span class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-green-500"></span>Ingresos</span>
+          <span class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-red-500"></span>Gastos</span>
+        </div>
+      </div>
+      <div class="mt-8 flex h-56 items-end gap-2 border-b-2 border-gray-200 px-2 sm:gap-5">
+        @for (mes of gastosPorMes(); track mes.clave) {
+          <div class="flex h-full flex-1 items-end justify-center gap-1 sm:gap-2">
+            <div class="group relative flex h-full w-1/2 items-end justify-center">
+              <div class="w-full rounded-t-lg bg-green-500 transition-all duration-500 group-hover:bg-green-600" [style.height.%]="mes.alturaIngresos" [attr.aria-label]="'Ingresos de ' + mes.nombre + ': ' + mes.ingresos"></div>
+              <span class="pointer-events-none absolute -top-7 hidden whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[10px] font-bold text-white group-hover:block">{{ mes.ingresos | currency:'USD':'symbol':'1.0-0' }}</span>
+            </div>
+            <div class="group relative flex h-full w-1/2 items-end justify-center">
+              <div class="w-full rounded-t-lg bg-red-500 transition-all duration-500 group-hover:bg-red-600" [style.height.%]="mes.alturaGastos" [attr.aria-label]="'Gastos de ' + mes.nombre + ': ' + mes.gastos"></div>
+              <span class="pointer-events-none absolute -top-7 hidden whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[10px] font-bold text-white group-hover:block">{{ mes.gastos | currency:'USD':'symbol':'1.0-0' }}</span>
+            </div>
+            <span class="absolute mt-64 text-xs font-bold capitalize text-gray-500">{{ mes.nombre }}</span>
+          </div>
+        }
+      </div>
+    </article>
+
+    <article class="rounded-3xl bg-gray-900 p-6 text-white shadow-xl md:p-8">
+      <div>
+        <p class="text-sm font-bold uppercase tracking-[0.2em] text-red-400">Distribución</p>
+        <h2 class="mt-2 text-2xl font-black">¿En qué gastas?</h2>
+      </div>
+      <div class="mt-7 flex justify-center">
+        <div class="relative h-44 w-44 rounded-full" [style.background]="estiloGraficoCategorias()">
+          <div class="absolute inset-7 flex flex-col items-center justify-center rounded-full bg-gray-900 text-center">
+            <span class="text-2xl font-black">{{ gastos() | currency:'USD':'symbol':'1.0-0' }}</span>
+            <span class="text-xs text-gray-400">total</span>
+          </div>
+        </div>
+      </div>
+      <div class="mt-7 grid grid-cols-2 gap-3 text-sm">
+        @for (categoria of gastosPorCategoria(); track categoria.id; let indice = $index) {
+          <div class="flex items-center gap-2">
+            <span class="h-3 w-3 rounded-full" [class]="['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500'][indice]"></span>
+            <span class="truncate text-gray-300">{{ categoria.nombre }}</span>
+            <span class="ml-auto font-black">{{ porcentajeDelTotal(categoria.total) }}%</span>
+          </div>
+        }
+      </div>
+    </article>
+  </section>
+
+  @if (proximosRecurrentes().length > 0) {
+    <section class="mt-12 rounded-3xl border-2 border-gray-900 bg-white p-6 shadow-[4px_4px_0px_0px_rgba(17,24,39,1)] md:p-8" aria-labelledby="recurrentes-title">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p class="text-sm font-bold uppercase tracking-[0.2em] text-red-600">Recordatorio</p>
+          <h2 id="recurrentes-title" class="mt-2 text-2xl font-black">Próximos vencimientos</h2>
+        </div>
+        <a routerLink="/recurrentes" class="text-sm font-bold underline decoration-red-500 decoration-2 underline-offset-4">Gestionar recurrentes</a>
+      </div>
+      <div class="mt-6 grid gap-4 md:grid-cols-3">
+        @for (gasto of proximosRecurrentes(); track gasto.id) {
+          <article class="rounded-2xl bg-gray-50 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <h3 class="font-black">{{ gasto.descripcion }}</h3>
+              <span class="text-lg font-black text-red-600">{{ gasto.monto | currency:'USD':'symbol':'1.2-2' }}</span>
+            </div>
+            <p class="mt-2 text-sm text-gray-600">Vence el {{ gasto.proximaFecha | date:'dd MMM yyyy' }}</p>
+          </article>
+        }
+      </div>
+    </section>
+  }
 
   <section class="mt-20" aria-labelledby="movements-title">
     <div class="mb-7 flex items-end justify-between gap-4">
       <div>
         <p class="mb-2 text-sm font-bold uppercase tracking-[0.2em] text-red-600">Actividad</p>
-        <h2 id="movements-title" class="text-3xl font-black tracking-tight md:text-4xl">Últimos Movimientos</h2>
+        <h2 id="movements-title" class="text-3xl font-black tracking-tight md:text-4xl">Últimos movimientos</h2>
       </div>
-      <a
-        routerLink="/movimientos"
-        class="hidden text-sm font-bold text-gray-900 underline decoration-red-500 decoration-2 underline-offset-4 transition-colors hover:text-red-600 sm:block"
-      >
-        Ver todos
-      </a>
+      <a routerLink="/movimientos" class="hidden text-sm font-bold text-gray-900 underline decoration-red-500 decoration-2 underline-offset-4 transition-colors hover:text-red-600 sm:block">Ver todos</a>
     </div>
 
-    <div class="grid gap-5 md:grid-cols-2">
-      @for (movement of movements; track movement.merchant) {
-        <article class="flex items-center justify-between gap-4 rounded-3xl p-6 transition-transform hover:-translate-y-1" [class]="movement.featured ? 'bg-gray-900 text-white' : 'border-2 border-gray-900 bg-white text-gray-900'">
-          <div class="flex min-w-0 items-center gap-4">
-            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" [class]="movement.featured ? 'bg-red-500 text-white' : 'bg-red-500/20 text-red-600'" aria-hidden="true">
-              @switch (movement.icon) {
-                @case ('cart') {
-                  <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 1.9-1.4L21 8H6M10 20h.01M18 20h.01" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                }
-                @case ('train') {
-                  <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="14" rx="3" /><path d="M8 21l2-4h4l2 4M8 12h.01M16 12h.01M5 8h14" stroke-linecap="round" /></svg>
-                }
-                @case ('coffee') {
-                  <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10h13v3a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-3ZM17 11h1a3 3 0 1 1 0 6h-2M7 21h10" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                }
-                @default {
-                  <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.7-9H17a4 4 0 0 1 .5 9Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                }
-              }
-            </span>
-            <div class="min-w-0">
-              <h3 class="truncate font-bold">{{ movement.merchant }}</h3>
-              <p class="mt-1 text-sm" [class]="movement.featured ? 'text-gray-400' : 'text-gray-500'">{{ movement.category }} · {{ movement.date }}</p>
+    @if (movimientosRecientes().length === 0) {
+      <article class="rounded-3xl border-2 border-dashed border-gray-400 bg-white p-10 text-center">
+        <h3 class="text-xl font-black">Aún no hay movimientos</h3>
+        <p class="mt-2 text-gray-600">Registra tu primer ingreso o gasto para ver tus métricas.</p>
+        <a routerLink="/movimientos" class="mt-5 inline-block rounded-lg bg-gray-900 px-6 py-3 font-semibold text-white hover:bg-gray-800">Registrar movimiento</a>
+      </article>
+    } @else {
+      <div class="grid gap-5 md:grid-cols-2">
+        @for (movement of movimientosRecientes(); track movement.id; let index = $index) {
+          <article class="flex items-center justify-between gap-4 rounded-3xl p-6 transition-transform hover:-translate-y-1" [class]="index % 2 === 0 ? 'bg-gray-900 text-white' : 'border-2 border-gray-900 bg-white text-gray-900'">
+            <div class="flex min-w-0 items-center gap-4">
+              <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-500 text-xl text-white" aria-hidden="true">{{ movement.tipo === 'ingreso' ? '+' : '−' }}</span>
+              <div class="min-w-0">
+                <h3 class="truncate font-bold">{{ movement.descripcion }}</h3>
+                <p class="mt-1 text-sm" [class]="index % 2 === 0 ? 'text-gray-400' : 'text-gray-500'">{{ descripcionCategoria(movement) }} · {{ movement.fecha | date:'mediumDate' }}</p>
+              </div>
             </div>
-          </div>
-          <p class="shrink-0 text-lg font-black">{{ movement.amount }}</p>
-        </article>
-      }
-    </div>
+            <p class="shrink-0 text-lg font-black" [class]="movement.tipo === 'ingreso' ? 'text-green-400' : (index % 2 === 0 ? 'text-white' : 'text-red-600')">
+              {{ movement.tipo === 'ingreso' ? '+' : '−' }}{{ movement.monto | currency:'USD':'symbol':'1.2-2' }}
+            </p>
+          </article>
+        }
+      </div>
+    }
   </section>
 </main>
