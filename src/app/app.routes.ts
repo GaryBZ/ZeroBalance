@@ -3,6 +3,7 @@ import { Dashboard } from './features/dashboard/dashboard';
 import { MovimientoList } from './features/movimientos/movimiento-list/movimiento-list';
 import { Objetivos } from './features/objetivos/objetivos';
 import { Presupuesto } from './features/presupuesto/presupuesto';
+import { Recurrentes } from './features/recurrentes/recurrentes';
 
 export const routes: Routes = [
   {
@@ -29,6 +30,11 @@ export const routes: Routes = [
     path: 'presupuesto',
     component: Presupuesto,
     title: 'Presupuesto | ZeroBalance',
+  },
+  {
+    path: 'recurrentes',
+    component: Recurrentes,
+    title: 'Gastos recurrentes | ZeroBalance',
   },
   {
     path: '**',

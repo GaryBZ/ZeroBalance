@@ -1,12 +1,13 @@
 import { CommonModule, CurrencyPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   Categoria,
   CategoriaId,
   Presupuesto as PresupuestoModel,
 } from '../../core/models/finance.models';
-import { Finance } from '../../core/services/finance';
+import { PresupuestoService } from '../../core/services/presupuesto.service';
+import { CategoriaService } from '../../core/services/categoria.service';
 
 @Component({
   selector: 'app-presupuesto',
@@ -15,13 +16,11 @@ import { Finance } from '../../core/services/finance';
   styleUrl: './presupuesto.css',
 })
 export class Presupuesto {
-  private readonly finance = inject(Finance);
+  private readonly presupuestoService = inject(PresupuestoService);
+  private readonly categoriaService = inject(CategoriaService);
 
-  protected readonly categorias: Categoria[] =
-    this.finance.obtenerCategorias();
-  protected readonly presupuesto = signal<PresupuestoModel>(
-    this.finance.obtenerPresupuesto(),
-  );
+  protected readonly categorias = this.categoriaService.categorias;
+  protected readonly presupuesto = this.presupuestoService.presupuesto;
   protected readonly nuevoIngresoBase = signal<number | null>(
     this.presupuesto().ingresoBase,
   );
@@ -47,6 +46,17 @@ export class Presupuesto {
       (this.totalAsignado() / (this.presupuesto().ingresoBase || 1)) * 100,
     ),
   );
+
+  constructor() {
+    effect(() => {
+      const ingresoBase = this.presupuesto().ingresoBase;
+      if (this.nuevoIngresoBase() === 0) {
+        this.nuevoIngresoBase.set(ingresoBase);
+      }
+    });
+    this.categoriaService.obtenerCategorias();
+    this.presupuestoService.obtenerPresupuesto();
+  }
 
   protected actualizarIngresoBase(): void {
     const ingresoBase = this.nuevoIngresoBase();
@@ -98,8 +108,10 @@ export class Presupuesto {
     ingresoBase: number,
     limitesPorCategoria: Record<CategoriaId, number>,
   ): void {
-    this.finance.actualizarPresupuesto(ingresoBase, limitesPorCategoria);
-    this.presupuesto.set(this.finance.obtenerPresupuesto());
+    this.presupuestoService.actualizarPresupuestoLocal(
+      ingresoBase,
+      limitesPorCategoria,
+    );
     this.nuevoIngresoBase.set(ingresoBase);
   }
 }

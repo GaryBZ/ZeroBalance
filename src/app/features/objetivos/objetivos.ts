@@ -1,8 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Finance } from '../../core/services/finance';
 import { ObjetivoAhorro } from '../../core/models/finance.models';
+import { ObjetivoService } from '../../core/services/objetivo.service';
 
 @Component({
   selector: 'app-objetivos',
@@ -11,19 +11,24 @@ import { ObjetivoAhorro } from '../../core/models/finance.models';
   styleUrl: './objetivos.css',
 })
 export class Objetivos {
-  private readonly finance = inject(Finance);
+  private readonly objetivoService = inject(ObjetivoService);
   private readonly formBuilder = inject(FormBuilder);
 
-  protected readonly objetivos = signal<ObjetivoAhorro[]>(
-    this.finance.obtenerObjetivos(),
-  );
+  protected readonly objetivos = this.objetivoService.objetivos;
   protected readonly abonos = signal<Record<string, number | null>>({});
+  protected readonly objetivoEditando = signal<string | null>(null);
 
   protected readonly objetivoForm = this.formBuilder.nonNullable.group({
     nombre: ['', [Validators.required, Validators.minLength(2)]],
     montoObjetivo: [0, [Validators.required, Validators.min(0.01)]],
     montoAhorrado: [0, [Validators.required, Validators.min(0)]],
+    fechaLimite: [''],
+    estado: ['activo' as ObjetivoAhorro['estado'], Validators.required],
   });
+
+  constructor() {
+    this.objetivoService.obtenerObjetivos();
+  }
 
   protected porcentaje(objetivo: ObjetivoAhorro): number {
     if (objetivo.montoObjetivo <= 0) {
@@ -36,40 +41,106 @@ export class Objetivos {
     );
   }
 
+  protected estaCompletado(objetivo: ObjetivoAhorro): boolean {
+    return objetivo.montoAhorrado >= objetivo.montoObjetivo;
+  }
+
   protected crearObjetivo(): void {
     if (this.objetivoForm.invalid) {
       this.objetivoForm.markAllAsTouched();
       return;
     }
 
-    const { nombre, montoObjetivo, montoAhorrado } =
+    const { nombre, montoObjetivo, montoAhorrado, fechaLimite, estado } =
       this.objetivoForm.getRawValue();
-    this.finance.crearObjetivo(nombre.trim(), montoObjetivo, montoAhorrado);
-    this.objetivos.set(this.finance.obtenerObjetivos());
+    const objetivo = {
+      nombre: nombre.trim(),
+      montoObjetivo,
+      montoAhorrado,
+      fechaLimite: fechaLimite || null,
+      estado,
+    };
+    const id = this.objetivoEditando();
+
+    if (id === null) {
+      this.objetivoService.agregarObjetivo(objetivo);
+    } else {
+      this.objetivoService.actualizarObjetivo(id, objetivo);
+      this.objetivoEditando.set(null);
+    }
+
     this.objetivoForm.reset({
       nombre: '',
       montoObjetivo: 0,
       montoAhorrado: 0,
+      fechaLimite: '',
+      estado: 'activo',
     });
   }
 
   protected abonar(objetivo: ObjetivoAhorro): void {
-    const abono = this.abonos()[objetivo.id] ?? 0;
-
-    if (abono <= 0) {
+    if (this.estaCompletado(objetivo)) {
       return;
     }
 
-    this.finance.actualizarAhorroObjetivo(
+    const abono = this.abonos()[objetivo.id] ?? 0;
+    if (abono <= 0 || objetivo.montoAhorrado + abono > objetivo.montoObjetivo) {
+      return;
+    }
+
+    this.objetivoService.actualizarAhorroLocal(
       objetivo.id,
       objetivo.montoAhorrado + abono,
     );
-    this.objetivos.set(this.finance.obtenerObjetivos());
     this.abonos.update((abonos) => ({ ...abonos, [objetivo.id]: null }));
+  }
+
+  protected editar(objetivo: ObjetivoAhorro): void {
+    this.objetivoEditando.set(objetivo.id);
+    this.objetivoForm.setValue({
+      nombre: objetivo.nombre,
+      montoObjetivo: objetivo.montoObjetivo,
+      montoAhorrado: objetivo.montoAhorrado,
+      fechaLimite: objetivo.fechaLimite ?? '',
+      estado: objetivo.estado,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  protected cancelarEdicion(): void {
+    this.objetivoEditando.set(null);
+    this.objetivoForm.reset({
+      nombre: '',
+      montoObjetivo: 0,
+      montoAhorrado: 0,
+      fechaLimite: '',
+      estado: 'activo',
+    });
+  }
+
+  protected eliminar(objetivo: ObjetivoAhorro): void {
+    if (!window.confirm(`¿Eliminar el objetivo "${objetivo.nombre}"?`)) {
+      return;
+    }
+
+    this.objetivoService.eliminarObjetivo(objetivo.id);
   }
 
   protected actualizarAbono(id: string, valor: string): void {
     const abono = valor === '' ? null : Number(valor);
     this.abonos.update((abonos) => ({ ...abonos, [id]: abono }));
+  }
+
+  protected proyeccion(objetivo: ObjetivoAhorro): string | null {
+    const restante = objetivo.montoObjetivo - objetivo.montoAhorrado;
+    if (restante <= 0) {
+      return 'Completada';
+    }
+    if (objetivo.promedioMensual <= 0) {
+      return null;
+    }
+    const fecha = new Date();
+    fecha.setMonth(fecha.getMonth() + Math.ceil(restante / objetivo.promedioMensual));
+    return fecha.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
   }
 }

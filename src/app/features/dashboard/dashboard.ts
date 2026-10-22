@@ -1,30 +1,278 @@
-import { Component } from '@angular/core';
+import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
+import { Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-
-interface Movement {
-  merchant: string;
-  category: string;
-  date: string;
-  amount: string;
-  icon: 'cart' | 'train' | 'coffee' | 'cloud';
-  featured?: boolean;
-}
+import { Movimiento } from '../../core/models/finance.models';
+import { MovimientoService } from '../../core/services/movimiento.service';
+import { PresupuestoService } from '../../core/services/presupuesto.service';
+import { ObjetivoService } from '../../core/services/objetivo.service';
+import { CategoriaId } from '../../core/models/finance.models';
+import { RecurrenteService } from '../../core/services/recurrente.service';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink],
+  imports: [CommonModule, CurrencyPipe, DatePipe, RouterLink],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })
 export class Dashboard {
-  protected readonly availableBalance = '$1,840.50';
-  protected readonly monthlyExpenses = '$2,459.50';
-  protected readonly budgetProgress = 68;
+  private readonly movimientoService = inject(MovimientoService);
+  private readonly presupuestoService = inject(PresupuestoService);
+  private readonly objetivoService = inject(ObjetivoService);
+  private readonly recurrenteService = inject(RecurrenteService);
 
-  protected readonly movements: Movement[] = [
-    { merchant: 'Supermercado La Colmena', category: 'Alimentación', date: 'Hoy, 10:42', amount: '-$86.40', icon: 'cart', featured: true },
-    { merchant: 'Metro y transporte', category: 'Transporte', date: 'Ayer, 08:15', amount: '-$32.00', icon: 'train' },
-    { merchant: 'Café Central', category: 'Ocio', date: '12 oct, 16:30', amount: '-$8.50', icon: 'coffee', featured: true },
-    { merchant: 'Suscripción Nube', category: 'Servicios', date: '10 oct, 09:00', amount: '-$12.99', icon: 'cloud' },
-  ];
+  protected readonly movimientos = this.movimientoService.movimientos;
+  protected readonly presupuesto = this.presupuestoService.presupuesto;
+  protected readonly objetivos = this.objetivoService.objetivos;
+  protected readonly recurrentes = this.recurrenteService.gastos;
+  protected readonly proximosRecurrentes = computed(() => {
+    const limite = new Date();
+    limite.setDate(limite.getDate() + 30);
+    return this.recurrentes()
+      .filter((gasto) => gasto.activo && new Date(gasto.proximaFecha) <= limite)
+      .slice(0, 3);
+  });
+
+  protected readonly ingresos = computed(() =>
+    this.movimientos()
+      .filter((movimiento) => movimiento.tipo === 'ingreso')
+      .reduce((total, movimiento) => total + movimiento.monto, 0),
+  );
+
+  protected readonly gastos = computed(() =>
+    this.movimientos()
+      .filter((movimiento) => movimiento.tipo === 'gasto')
+      .reduce((total, movimiento) => total + movimiento.monto, 0),
+  );
+
+  protected readonly saldoDisponible = computed(
+    () => this.ingresos() - this.gastos(),
+  );
+
+  protected readonly porcentajeSaldo = computed(() => {
+    const ingresos = this.ingresos();
+    return ingresos > 0
+      ? Math.min(100, Math.max(0, (this.saldoDisponible() / ingresos) * 100))
+      : 0;
+  });
+
+  protected readonly movimientosRecientes = computed(() =>
+    [...this.movimientos()]
+      .sort((a, b) => this.fechaTimestamp(b) - this.fechaTimestamp(a))
+      .slice(0, 4),
+  );
+
+  protected readonly gastoMensual = computed(() => {
+    const ahora = new Date();
+    return this.movimientos()
+      .filter(
+        (movimiento) =>
+          movimiento.tipo === 'gasto' &&
+          this.fechaTimestamp(movimiento) >=
+            new Date(ahora.getFullYear(), ahora.getMonth(), 1).getTime(),
+      )
+      .reduce((total, movimiento) => total + movimiento.monto, 0);
+  });
+
+  protected readonly porcentajePresupuesto = computed(() => {
+    const base = this.presupuesto().ingresoBase;
+    return base > 0 ? Math.min(100, Math.round((this.gastoMensual() / base) * 100)) : 0;
+  });
+
+  protected readonly alertaPresupuesto = computed(() => {
+    const porcentaje = this.porcentajePresupuesto();
+    if (porcentaje >= 100) {
+      return 'Has superado tu presupuesto base mensual.';
+    }
+    if (porcentaje >= 90) {
+      return 'Estás muy cerca de superar tu presupuesto base.';
+    }
+    if (porcentaje >= 70) {
+      return 'Ya utilizaste una parte importante de tu presupuesto.';
+    }
+    return null;
+  });
+
+  protected readonly gastosPorCategoria = computed(() => {
+    const categorias: Array<{ id: CategoriaId; nombre: string; total: number }> = [
+      { id: 'alquiler', nombre: 'Alquiler', total: 0 },
+      { id: 'comida', nombre: 'Comida', total: 0 },
+      { id: 'ocio', nombre: 'Ocio', total: 0 },
+      { id: 'servicios', nombre: 'Servicios', total: 0 },
+    ];
+
+    for (const movimiento of this.movimientos()) {
+      if (movimiento.tipo !== 'gasto') {
+        continue;
+      }
+      const categoria = categorias.find((item) => item.id === movimiento.categoriaId);
+      if (categoria) {
+        categoria.total += movimiento.monto;
+      }
+    }
+
+    const maximo = Math.max(...categorias.map((categoria) => categoria.total), 1);
+    return categorias.map((categoria) => ({
+      ...categoria,
+      porcentaje: Math.round((categoria.total / maximo) * 100),
+    }));
+  });
+
+  protected readonly gastosPorMes = computed(() => {
+    const ahora = new Date();
+    const meses: Array<{
+      clave: string;
+      nombre: string;
+      ingresos: number;
+      gastos: number;
+    }> = [];
+
+    for (let desplazamiento = 5; desplazamiento >= 0; desplazamiento -= 1) {
+      const fecha = new Date(ahora.getFullYear(), ahora.getMonth() - desplazamiento, 1);
+      meses.push({
+        clave: `${fecha.getFullYear()}-${fecha.getMonth()}`,
+        nombre: new Intl.DateTimeFormat('es', { month: 'short' })
+          .format(fecha)
+          .replace('.', ''),
+        ingresos: 0,
+        gastos: 0,
+      });
+    }
+
+    for (const movimiento of this.movimientos()) {
+      const fecha = new Date(movimiento.fecha);
+      const mes = meses.find(
+        (item) => item.clave === `${fecha.getFullYear()}-${fecha.getMonth()}`,
+      );
+      if (!mes) {
+        continue;
+      }
+      if (movimiento.tipo === 'ingreso') {
+        mes.ingresos += movimiento.monto;
+      } else {
+        mes.gastos += movimiento.monto;
+      }
+    }
+
+    const maximo = Math.max(
+      ...meses.flatMap((mes) => [mes.ingresos, mes.gastos]),
+      1,
+    );
+    return meses.map((mes) => ({
+      ...mes,
+      alturaIngresos: Math.max(4, Math.round((mes.ingresos / maximo) * 100)),
+      alturaGastos: Math.max(4, Math.round((mes.gastos / maximo) * 100)),
+    }));
+  });
+
+  protected readonly totalGastosPorCategoria = computed(() =>
+    this.gastosPorCategoria().reduce((total, categoria) => total + categoria.total, 0),
+  );
+
+  protected porcentajeDelTotal(total: number): number {
+    const totalGastos = this.totalGastosPorCategoria();
+    return totalGastos > 0 ? Math.round((total / totalGastos) * 100) : 0;
+  }
+
+  protected estiloGraficoCategorias(): string {
+    const categorias = this.gastosPorCategoria();
+    const porcentajes = categorias.map((categoria) => this.porcentajeDelTotal(categoria.total));
+    if (this.totalGastosPorCategoria() === 0) {
+      return 'conic-gradient(#374151 0% 100%)';
+    }
+
+    const colores = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
+    let inicio = 0;
+    const segmentos = porcentajes.map((porcentaje, indice) => {
+      const fin = inicio + porcentaje;
+      const segmento = `${colores[indice]} ${inicio}% ${fin}%`;
+      inicio = fin;
+      return segmento;
+    });
+    return `conic-gradient(${segmentos.join(', ')})`;
+  }
+
+  protected exportarMovimientos(): void {
+    const fechaGeneracion = new Date();
+    const fechaTexto = fechaGeneracion.toLocaleString('es-MX', {
+      dateStyle: 'long',
+      timeStyle: 'short',
+    });
+    const filas = this.movimientos()
+      .map((movimiento) => `
+        <tr>
+          <td>${this.escapeHtml(new Date(movimiento.fecha).toLocaleString('es-MX'))}</td>
+          <td>${this.escapeHtml(movimiento.tipo === 'ingreso' ? 'Ingreso' : 'Gasto')}</td>
+          <td>${this.escapeHtml(movimiento.descripcion)}</td>
+          <td>${this.escapeHtml(this.descripcionCategoria(movimiento))}</td>
+          <td class="amount">$${movimiento.monto.toFixed(2)}</td>
+        </tr>`)
+      .join('');
+    const documento = `
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; color: #111827; background: #ffffff; }
+            .report { width: 100%; max-width: 900px; margin: 0 auto; }
+            h1 { color: #111827; font-size: 24px; margin-bottom: 6px; }
+            .date { color: #4b5563; font-size: 13px; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; background: #ffffff; }
+            th { padding: 10px; border: 1px solid #111827; background: #dc2626; color: #ffffff; text-align: left; }
+            td { padding: 9px 10px; border: 1px solid #9ca3af; background: #ffffff; }
+            .amount { text-align: right; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="report">
+            <h1>ZeroBalance - Historial de movimientos</h1>
+            <p class="date">Fecha de generación: ${this.escapeHtml(fechaTexto)}</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Descripción</th>
+                  <th>Categoría</th>
+                  <th>Monto</th>
+                </tr>
+              </thead>
+              <tbody>${filas}</tbody>
+            </table>
+          </div>
+        </body>
+      </html>`;
+    const enlace = document.createElement('a');
+    enlace.href = URL.createObjectURL(
+      new Blob([`\ufeff${documento}`], { type: 'application/vnd.ms-excel' }),
+    );
+    enlace.download = `zerobalance-movimientos-${fechaGeneracion.toISOString().slice(0, 10)}.xls`;
+    enlace.click();
+    URL.revokeObjectURL(enlace.href);
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  constructor() {
+    this.movimientoService.obtenerMovimientos();
+    this.presupuestoService.obtenerPresupuesto();
+    this.objetivoService.obtenerObjetivos();
+    this.recurrenteService.listar();
+  }
+
+  protected descripcionCategoria(movimiento: Movimiento): string {
+    return movimiento.categoriaId.charAt(0).toUpperCase() +
+      movimiento.categoriaId.slice(1);
+  }
+
+  protected fechaTimestamp(movimiento: Movimiento): number {
+    const timestamp = new Date(movimiento.fecha).getTime();
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+  }
 }
