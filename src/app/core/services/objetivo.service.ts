@@ -99,9 +99,18 @@ export class ObjetivoService {
       montoObjetivo: Number(objetivo.monto_meta),
       montoAhorrado: Number(objetivo.monto_actual),
       fechaCreacion: '',
-      fechaLimite: objetivo.fecha_limite,
+      fechaLimite: this.normalizarFecha(objetivo.fecha_limite),
       estado: objetivo.estado,
       promedioMensual: Number(objetivo.promedio_mensual),
     };
+  }
+
+  private normalizarFecha(fecha: string | null): string | null {
+    if (!fecha) {
+      return null;
+    }
+
+    const coincidencia = /^(\d{4}-\d{2}-\d{2})/.exec(fecha);
+    return coincidencia?.[1] ?? null;
   }
 }

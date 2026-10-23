@@ -8,6 +8,7 @@ import {
 } from '../../core/models/finance.models';
 import { PresupuestoService } from '../../core/services/presupuesto.service';
 import { CategoriaService } from '../../core/services/categoria.service';
+import { RecurrenteService } from '../../core/services/recurrente.service';
 
 @Component({
   selector: 'app-presupuesto',
@@ -18,6 +19,7 @@ import { CategoriaService } from '../../core/services/categoria.service';
 export class Presupuesto {
   private readonly presupuestoService = inject(PresupuestoService);
   private readonly categoriaService = inject(CategoriaService);
+  private readonly recurrenteService = inject(RecurrenteService);
 
   protected readonly categorias = this.categoriaService.categorias;
   protected readonly presupuesto = this.presupuestoService.presupuesto;
@@ -46,6 +48,22 @@ export class Presupuesto {
       (this.totalAsignado() / (this.presupuesto().ingresoBase || 1)) * 100,
     ),
   );
+  protected readonly gastosRecurrentes = this.recurrenteService.gastos;
+  protected readonly compromisoMensual = computed(() =>
+    this.gastosRecurrentes()
+      .filter((gasto) => gasto.activo)
+      .reduce((total, gasto) => {
+        const factor = gasto.frecuencia === 'semanal'
+          ? 52 / 12
+          : gasto.frecuencia === 'anual'
+            ? 1 / 12
+            : 1;
+        return total + gasto.monto * factor;
+      }, 0),
+  );
+  protected readonly disponibleTrasCompromisos = computed(
+    () => this.presupuesto().ingresoBase - this.totalAsignado() - this.compromisoMensual(),
+  );
 
   constructor() {
     effect(() => {
@@ -56,6 +74,7 @@ export class Presupuesto {
     });
     this.categoriaService.obtenerCategorias();
     this.presupuestoService.obtenerPresupuesto();
+    this.recurrenteService.listar();
   }
 
   protected actualizarIngresoBase(): void {
@@ -91,6 +110,19 @@ export class Presupuesto {
 
   protected nuevoLimite(categoriaId: CategoriaId): number | null {
     return this.nuevosLimites()[categoriaId] ?? this.limiteActual(categoriaId);
+  }
+
+  protected compromisoCategoria(categoriaId: CategoriaId): number {
+    return this.gastosRecurrentes()
+      .filter((gasto) => gasto.activo && gasto.categoriaId === categoriaId)
+      .reduce((total, gasto) => {
+        const factor = gasto.frecuencia === 'semanal'
+          ? 52 / 12
+          : gasto.frecuencia === 'anual'
+            ? 1 / 12
+            : 1;
+        return total + gasto.monto * factor;
+      }, 0);
   }
 
   protected cambiarIngresoBase(valor: string): void {

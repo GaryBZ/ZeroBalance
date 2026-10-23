@@ -78,9 +78,13 @@ export class RecurrenteService {
       monto: Number(gasto.monto),
       categoriaId: this.categoriaIdTexto(gasto.categoria_id),
       frecuencia: gasto.frecuencia,
-      proximaFecha: gasto.proxima_fecha,
+      proximaFecha: this.normalizarFecha(gasto.proxima_fecha),
       activo: gasto.activo,
     };
+  }
+
+  private normalizarFecha(fecha: string): string {
+    return /^(\d{4}-\d{2}-\d{2})/.exec(fecha)?.[1] ?? fecha;
   }
 
   private categoriaIdTexto(id: number | null): CategoriaId {

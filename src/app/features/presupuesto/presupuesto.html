@@ -84,6 +84,20 @@
           La suma de tus límites supera el ingreso base. Ajusta alguna categoría.
         </p>
       }
+      <div class="mt-5 grid gap-3 border-t-2 border-dashed border-gray-300 pt-5 text-sm sm:grid-cols-2">
+        <div>
+          <p class="font-bold text-gray-500">Compromisos recurrentes</p>
+          <p class="mt-1 text-xl font-black text-red-600">{{ compromisoMensual() | currency }}</p>
+          <p class="text-xs text-gray-500">Estimado mensual de pagos activos</p>
+        </div>
+        <div>
+          <p class="font-bold text-gray-500">Disponible real</p>
+          <p class="mt-1 text-xl font-black" [class]="disponibleTrasCompromisos() < 0 ? 'text-red-600' : 'text-gray-900'">
+            {{ disponibleTrasCompromisos() | currency }}
+          </p>
+          <p class="text-xs text-gray-500">Después de límites y compromisos</p>
+        </div>
+      </div>
     </aside>
   </div>
 
@@ -111,6 +125,10 @@
             <span class="rounded-lg bg-red-100 px-2 py-1 text-sm font-black text-red-600">
               {{ limiteActual(categoria.id) | currency }}
             </span>
+          </div>
+          <div class="mt-3 flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm">
+            <span class="font-bold text-gray-500">Comprometido en recurrentes</span>
+            <span class="font-black text-red-600">{{ compromisoCategoria(categoria.id) | currency }}</span>
           </div>
 
           <div class="mt-5 flex gap-2">
